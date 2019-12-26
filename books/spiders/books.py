@@ -4,16 +4,11 @@ import re
 
 class BooksSpider(scrapy.Spider):
     name = 'books'
-    curser = 1
-    start_urls = [
-        'https://www.zuijuzi.com/ju/' + str(curser),
-    ]
-
+    def start_requests(self):
+        for i in range(1,859841):
+            url = 'https://www.zuijuzi.com/ju/' + str(i)
+            yield scrapy.Request(url=url, callback=self.parse)
     def parse(self, response):
-        self.curser = self.curser + 1
-        if self.curser < 859841:
-            next_page = 'https://www.zuijuzi.com/ju/' + str(self.curser)
-            yield scrapy.Request(response.urljoin(next_page), callback=self.parse)
         item = {}
         id = response.url.split("/")[-1]
         lines = response.css("div.content::text").getall()
@@ -52,4 +47,3 @@ class BooksSpider(scrapy.Spider):
         item["id"] = id
         item["content"] = content
         yield item    
-
