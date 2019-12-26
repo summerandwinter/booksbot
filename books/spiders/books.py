@@ -1,30 +1,55 @@
 # -*- coding: utf-8 -*-
 import scrapy
-
+import re
 
 class BooksSpider(scrapy.Spider):
-    name = "books"
-    allowed_domains = ["books.toscrape.com"]
+    name = 'books'
+    curser = 1
     start_urls = [
-        'http://books.toscrape.com/',
+        'https://www.zuijuzi.com/ju/' + str(curser),
     ]
 
     def parse(self, response):
-        for book_url in response.css("article.product_pod > h3 > a ::attr(href)").extract():
-            yield scrapy.Request(response.urljoin(book_url), callback=self.parse_book_page)
-        next_page = response.css("li.next > a ::attr(href)").extract_first()
-        if next_page:
+        self.curser = self.curser + 1
+        if self.curser < 859841:
+            next_page = 'https://www.zuijuzi.com/ju/' + str(self.curser)
             yield scrapy.Request(response.urljoin(next_page), callback=self.parse)
-
-    def parse_book_page(self, response):
         item = {}
-        product = response.css("div.product_main")
-        item["title"] = product.css("h1 ::text").extract_first()
-        item['category'] = response.xpath(
-            "//ul[@class='breadcrumb']/li[@class='active']/preceding-sibling::li[1]/a/text()"
-        ).extract_first()
-        item['description'] = response.xpath(
-            "//div[@id='product_description']/following-sibling::p/text()"
-        ).extract_first()
-        item['price'] = response.css('p.price_color ::text').extract_first()
-        yield item
+        id = response.url.split("/")[-1]
+        lines = response.css("div.content::text").getall()
+        content = []
+        for line in lines:
+            content.append(line.strip())
+        metas = response.css("div.info a").getall()
+        tags = []
+        writer = {}
+        article = {}
+        for meta in metas:
+            tagResult = re.search('<a.*?href=".*tag/(.*?).html">(.*?)</a>', meta, re.S)
+            if tagResult:
+               tag = {}
+               tag["id"] = tagResult.group(1)
+               tag["title"] = tagResult.group(2)
+               tags.append(tag)
+
+            writerResult = re.search('<a.*?href=".*writer/(.*?)">(.*?)</a>', meta, re.S)
+            if writerResult:
+                if writerResult.group(1):
+                    writer["id"] = writerResult.group(1)
+                    writer["title"] = writerResult.group(2)
+                
+            articleResult = re.search('<a.*?href=".*article/(.*?)">(.*?)</a>', meta, re.S)
+            if articleResult:
+                article["id"] = articleResult.group(1)
+                article["title"] = articleResult.group(2)       
+
+        img = response.css("div.col-md-2 a img::attr(src)").get()
+        if img:
+            article['cover'] = img
+        item["tags"] = tags
+        item["writer"] = writer
+        item["article"] = article
+        item["id"] = id
+        item["content"] = content
+        yield item    
+
